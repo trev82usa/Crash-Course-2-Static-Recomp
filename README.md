@@ -21,9 +21,7 @@ Cloudflare's free plan.
 
 ![Racing through the jungle at 60 fps](docs/screenshots/jungle-race.jpg)
 
-| | |
-|---|---|
-| ![Main menu](docs/screenshots/main-menu.jpg) | ![Main menu, globe turned to Asia](docs/screenshots/main-menu-2.jpg) |
+![Main menu](docs/screenshots/main-menu.jpg)
 
 *Main menu and a jungle course on an AMD RX 6750 XT under Ubuntu, with the player name set in
 `crashcourse2.toml`. The racer is the offline build's stand-in avatar; real Xbox avatars need
