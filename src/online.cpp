@@ -192,7 +192,9 @@ HttpResponse Call(const std::string& method, const std::string& path, const std:
 // Background queue for score uploads, so finishing a track never waits for the network.
 std::mutex g_q_mutex;
 std::condition_variable g_q_cv;
+std::condition_variable g_idle_cv;
 std::deque<std::string> g_queue;
+int g_unsent = 0;  // queued + in flight
 
 void UploadThread() {
   for (;;) {
@@ -205,6 +207,12 @@ void UploadThread() {
     }
     auto r = Call("POST", "/api/v1/stats", body);
     if (r.status == 200) REXLOG_WARN("[online] scores uploaded: {}", r.body);
+    else REXLOG_WARN("[online] score upload failed: HTTP {} {}", r.status, r.body.substr(0, 200));
+    {
+      std::lock_guard lock(g_q_mutex);
+      --g_unsent;
+    }
+    g_idle_cv.notify_all();
   }
 }
 
@@ -214,8 +222,17 @@ void QueueUpload(std::string body) {
   {
     std::lock_guard lock(g_q_mutex);
     g_queue.push_back(std::move(body));
+    ++g_unsent;
   }
   g_q_cv.notify_one();
+}
+
+// Leaderboard reads wait (up to 4 s) for times still being uploaded. When a course ends the game
+// writes the time and reads that course's world record a few milliseconds later; on Xbox Live
+// the write was already visible by then.
+void WaitForUploads() {
+  std::unique_lock lock(g_q_mutex);
+  g_idle_cv.wait_for(lock, std::chrono::seconds(4), [] { return g_unsent == 0; });
 }
 
 // A leaderboard row as returned by the server's text format:
@@ -234,6 +251,40 @@ struct Board {
   uint32_t total = 0;
   std::vector<Row> rows;
 };
+
+// This session's own best per view (from XSessionWriteStats), so a board never comes back
+// without the player's time, even if the upload failed. The game assumes the world-record read
+// after a course returns at least one row (an empty board crashed it).
+std::mutex g_local_mutex;
+std::map<uint32_t, Row> g_local_best;
+
+void RememberOwnTime(uint32_t view, const Row& row) {
+  std::lock_guard lock(g_local_mutex);
+  auto it = g_local_best.find(view);
+  if (it == g_local_best.end() || row.rating > it->second.rating) g_local_best[view] = row;
+}
+
+// Adds the player's own row to `b` when the server's answer lacks it (empty or missing).
+void MergeOwnTime(uint32_t view, Board& b, bool only_if_empty) {
+  Row own;
+  {
+    std::lock_guard lock(g_local_mutex);
+    auto it = g_local_best.find(view);
+    if (it == g_local_best.end()) return;
+    own = it->second;
+  }
+  if (!b.rows.empty() && only_if_empty) return;
+  for (auto& r : b.rows)
+    if (r.xuid == own.xuid) return;
+  uint32_t rank = 1;
+  for (auto& r : b.rows)
+    if (r.rating > own.rating) rank = std::max(rank, r.rank + 1);
+  own.rank = rank;
+  b.rows.push_back(own);
+  std::sort(b.rows.begin(), b.rows.end(), [](const Row& a, const Row& c) { return a.rank < c.rank; });
+  b.total = std::max<uint32_t>(b.total, uint32_t(b.rows.size()));
+  b.ok = true;
+}
 
 Board ParseBoard(const HttpResponse& r) {
   Board b;
@@ -407,7 +458,10 @@ class StatsEnumerator : public rex::system::XEnumerator {
       std::string q = "/api/v1/leaderboard?fmt=text&view=" + std::to_string(sp.view) +
                       "&count=" + std::to_string(num_rows_);
       q += by_rank_ ? "&start=" + std::to_string(rank_start_) : "&around=" + Hex64(pivot_);
-      fetches_.push_back(std::async(std::launch::async, [q] { return ParseBoard(Call("GET", q, "")); }));
+      fetches_.push_back(std::async(std::launch::async, [q] {
+        WaitForUploads();
+        return ParseBoard(Call("GET", q, ""));
+      }));
     }
   }
 
@@ -421,6 +475,8 @@ class StatsEnumerator : public rex::system::XEnumerator {
     for (size_t k = 0; k < specs_.size(); ++k) {
       const auto& sp = specs_[k];
       Board b = fetches_[k].get();
+      // Rank queries from the top (the world record) or around the player.
+      if (by_rank_ ? rank_start_ <= 1 : pivot_ == MyXuid()) MergeOwnTime(sp.view, b, by_rank_);
       REXLOG_WARN("[online] enumerate view {} ({}): {}", sp.view,
                   by_rank_ ? "by rank " + std::to_string(rank_start_) : "around " + Hex64(pivot_),
                   BoardLog(b));
@@ -497,6 +553,19 @@ REX_HOOK_RAW(sub_82893ED0) {
       logline += b;
     }
     json += "]}";
+    if (n && xuid == MyXuid()) {
+      Row own;
+      own.xuid = xuid;
+      own.name = PlayerName();
+      bool has_rating = false;
+      for (uint32_t j = 0; j < n && j < 64; ++j) {
+        uint32_t p = props + 24 * j;
+        Value val = ReadData(m, p + 8);
+        own.props.push_back({m.u32(p), val});
+        if (m.u32(p) == 0x20000008) { own.rating = val.i; has_rating = true; }
+      }
+      if (has_rating) RememberOwnTime(view_id, own);
+    }
     if (n) REXLOG_WARN("[online] raw view {}: {}", view_id, HexDump(m, props, std::min(n, 4u) * 24));
   }
   json += "]}";
@@ -559,6 +628,7 @@ REX_HOOK_RAW(sub_82558450) {
       for (size_t i = 0; i < xuids.size(); ++i) body += (i ? ",\"" : "\"") + Hex64(xuids[i]) + "\"";
       body += "]}";
       pending.push_back(std::async(std::launch::async, [body] {
+        WaitForUploads();
         return ParseBoard(Call("POST", "/api/v1/read?fmt=text", body));
       }));
     }
@@ -577,7 +647,12 @@ REX_HOOK_RAW(sub_82558450) {
         } else {
           Row r;
           r.xuid = x;
-          if (x == MyXuid()) r.name = PlayerName();
+          if (x == MyXuid()) {
+            r.name = PlayerName();
+            Board own;
+            MergeOwnTime(specs[k].view, own, true);
+            if (!own.rows.empty()) r = own.rows[0];
+          }
           b.rows.push_back(r);
         }
       }
