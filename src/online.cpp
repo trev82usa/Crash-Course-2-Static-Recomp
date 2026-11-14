@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
 #include <condition_variable>
 #include <cstdio>
 #include <cstring>
@@ -252,6 +253,13 @@ struct Board {
   std::vector<Row> rows;
 };
 
+// Xbox Live answered leaderboard reads in a second or so, and the game relies on it: when a
+// course ends it asks for the world record while the results screen is still being built, and an
+// answer that arrives within ~0.4 s crashed it (a half-built object in the screen's update list).
+// So every read takes at least this long, counted from when the game asked.
+constexpr auto kMinReadLatency = std::chrono::milliseconds(1500);
+void WaitUntil(std::chrono::steady_clock::time_point t) { std::this_thread::sleep_until(t); }
+
 // This session's own best per view (from XSessionWriteStats), so a board never comes back
 // without the player's time, even if the upload failed. The game assumes the world-record read
 // after a course returns at least one row (an empty board crashed it).
@@ -452,7 +460,8 @@ class StatsEnumerator : public rex::system::XEnumerator {
                   uint32_t num_rows, std::vector<Spec> specs)
       : XEnumerator(ks, 1, ResultsSize(specs, num_rows)),
         by_rank_(by_rank), rank_start_(rank_start), pivot_(pivot), num_rows_(num_rows),
-        specs_(std::move(specs)) {
+        specs_(std::move(specs)),
+        ready_at_(std::chrono::steady_clock::now() + kMinReadLatency) {
     // Start every view's request straight away, in parallel; WriteItems just collects them.
     for (auto& sp : specs_) {
       std::string q = "/api/v1/leaderboard?fmt=text&view=" + std::to_string(sp.view) +
@@ -470,6 +479,7 @@ class StatsEnumerator : public rex::system::XEnumerator {
     *written_count = 0;
     if (done_) return 18;  // ERROR_NO_MORE_FILES
     done_ = true;
+    WaitUntil(ready_at_);
     Mem m{buffer_data - buffer_ptr};
     std::vector<Board> boards;
     for (size_t k = 0; k < specs_.size(); ++k) {
@@ -497,6 +507,7 @@ class StatsEnumerator : public rex::system::XEnumerator {
   uint64_t pivot_;
   uint32_t num_rows_;
   std::vector<Spec> specs_;
+  std::chrono::steady_clock::time_point ready_at_;
   bool done_ = false;
 };
 
@@ -666,8 +677,10 @@ REX_HOOK_RAW(sub_82558450) {
     uint8_t* ov = m.p(overlapped);
     rex::system::XOverlappedSetResult(ov, 997);  // ERROR_IO_PENDING
     rex::system::XOverlappedSetContext(ov, rex::system::XThread::GetCurrentThreadHandle());
-    std::thread([fetch_and_write, overlapped] {
+    auto ready_at = std::chrono::steady_clock::now() + kMinReadLatency;
+    std::thread([fetch_and_write, overlapped, ready_at] {
       uint32_t result = fetch_and_write();
+      WaitUntil(ready_at);
       REX_KERNEL_STATE()->CompleteOverlappedEx(overlapped, result, result, 0);
     }).detach();
     ctx.r3.u64 = 997;  // ERROR_IO_PENDING
