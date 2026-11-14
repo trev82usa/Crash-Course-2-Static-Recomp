@@ -1,0 +1,43 @@
+# Crash Course 2 settings (ReXGlue options). Keep this file next to crashcourse2.
+# Most of these are also in the F1 menu, which saves its changes back into this file.
+
+# Speed (from the Trials HD port):
+# Host GPU occlusion queries make the CPU wait for the GPU on every query. Off = report every
+# query as visible, as upstream Xenia does by default.
+occlusion_query_enable = false
+# Reading GPU shader writes back to the CPU makes the CPU wait for the GPU. Off is upstream
+# Xenia's default. Set to true if something looks wrong or missing (e.g. particles).
+readback_memexport = false
+
+# Logging: "warn" keeps the log small. Use "info" or "debug" when reporting a problem.
+log_level = "warn"
+
+# Full game rather than the Xbox Live Arcade trial (also set in code).
+license_mask = 4294967295
+
+# Frame limiter: 0 = off (normal), 60 = hold an exact 60 fps. Also in the F1 menu.
+cc2_fps_cap = 0
+
+# Keyboard: ms for the stick/triggers to build up to full while a key is held (0 = instant).
+# Hold Shift for half range. Also in the F1 menu (Controls).
+cc2_keyboard_smoothing = 150
+
+# The game files are the offline build (tools/make_offline_game.py), which plays without Xbox LIVE.
+# true = also present the profile as signed in to Xbox LIVE (only needed for experiments).
+# Every controller and the keyboard act as player 1 (the signed-in profile).
+cc2_all_controllers_player1 = true
+cc2_xbox_live = false
+
+# --- Your name and online leaderboards ----------------------------------------------------------
+# Easiest from the F1 menu. Your name shows in the game and on the leaderboards: 1-15 letters,
+# digits, spaces, _ or -. Empty = "User". Setting or changing it starts a fresh save profile.
+cc2_player_name = ""
+# Leaderboard server (the Cloudflare Worker in server/worker). Everyone who should see each other's
+# times uses the same address. Empty ("") = offline.
+cc2_server_url = ""
+# Your own password for the server, 8 or more characters. Make one up; the first time you connect
+# it is saved for your name, and after that only this password can post times as you.
+cc2_player_key = ""
+# Only needed if the server is protected with Cloudflare Access.
+cc2_cf_client_id = ""
+cc2_cf_client_secret = ""

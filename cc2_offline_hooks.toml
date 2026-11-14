@@ -1,0 +1,62 @@
+# MSVC CRT setjmp/longjmp (the game's Lua uses them for every error; running them as ordinary
+# guest code returns to the wrong place and crashes).
+setjmp_address = 0x828D9D30
+longjmp_address = 0x828D5AC0
+
+# The offline mod's seven mid-function detours, done as mid-asm hooks (src/offline_detours.cpp).
+# tools/make_offline_game.py leaves these sites as the game had them.
+
+[functions]
+# Disabled by the mod (li r3, 2; blr); the rest of their bytes hold the mod's code and strings.
+0x822D9A10 = { size = 0x8 }
+0x822DA320 = { size = 0x8 }
+
+[[midasm_hook]]
+name = "Cc2AvatarRefreshSkip"
+address = 0x829ECC48
+registers = ["r3", "r11"]
+return_on_true = true
+
+[[midasm_hook]]
+name = "Cc2AvatarRefreshSkip"
+address = 0x829EB7C8
+registers = ["r3", "r11"]
+return_on_true = true
+
+[[midasm_hook]]
+name = "Cc2NullThisSkip"
+address = 0x82AF3470
+registers = ["r3"]
+return_on_true = true
+
+[[midasm_hook]]
+name = "Cc2StandInModelName"
+address = 0x82B7D588
+registers = ["r5", "r9", "r10"]
+jump_address = 0x82B7D590
+
+[[midasm_hook]]
+name = "Cc2StandInModelName2"
+address = 0x82B7235C
+registers = ["r3", "r5", "r6", "r8", "r9"]
+jump_address = 0x82B7236C
+
+[[midasm_hook]]
+name = "Cc2NoBoneTable"
+address = 0x829EEE60
+registers = ["r3", "r11", "r24"]
+jump_address_on_true = 0x829EF21C
+jump_address_on_false = 0x829EEE68
+
+[[midasm_hook]]
+name = "Cc2SkipBadPair"
+address = 0x82A88970
+registers = ["r4", "r10", "r11"]
+jump_address_on_true = 0x82A8897C
+jump_address_on_false = 0x82A88974
+
+# Diagnostic: the game's script parser reports an error here (then returns null and crashes).
+[[midasm_hook]]
+name = "Cc2TraceParseError"
+address = 0x824DF620
+registers = ["r3", "r4", "r5", "r6"]

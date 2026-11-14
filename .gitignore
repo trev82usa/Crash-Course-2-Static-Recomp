@@ -1,0 +1,20 @@
+# Game data: never commit (copyrighted, and huge)
+5841124F/
+extracted/
+private/
+game/
+assets/
+*.xex
+*.pak
+*.wmv
+*.bik
+image.bin
+
+# Generated / build output (regenerate with rexglue codegen)
+generated/default/
+out/
+build/
+bin/
+logs/
+*.o
+*.a

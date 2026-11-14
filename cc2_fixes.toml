@@ -1,0 +1,16 @@
+# Hand-checked fixes for things ReXGlue's analysis gets wrong.
+
+# 0x828B39E8: byte-offset jump table with no bounds check (index = [r3+0x110] - 1).
+# Auto-detection read past the 16-entry table and pulled the next
+# function (0x828B3B38) into this one. Entry 4 is a tail jump to 0x828B3B38.
+[functions]
+0x828B39E8 = { size = 0x150 }
+# Title Update 2 code without .pdata: 0x8248C850 (a vtable entry) branches back to its early
+# return at 0x8248C864 from its later half; auto-detection split it at 0x8248C874.
+0x8248C748 = { size = 0x108 }
+0x8248C850 = { size = 0xA8 }
+
+[[switch_tables]]
+address = 0x828B3A2C
+register = 11
+labels = [0x828B3A60, 0x828B3A60, 0x828B3A60, 0x828B3A60, 0x828B3B38, 0x828B3A60, 0x828B3A60, 0x828B3A60, 0x828B3A60, 0x828B3A30, 0x828B3A60, 0x828B3A60, 0x828B3A30, 0x828B3A30, 0x828B3A30, 0x828B3A30]
