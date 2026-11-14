@@ -110,7 +110,9 @@ Worker's address, then press **Test connection**.
 ## Building it yourself
 
 The build runs on Linux and needs clang 20, CMake 3.25+, Ninja and the
-[ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) (v0.10) built and installed from source.
+[ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) (v0.10.1) built and installed from source,
+with `patches/rexglue-sdk-xma-frame-guard.patch` applied (`git apply` in the SDK folder). Without
+it, a damaged audio frame on one of the Island courses crashes the game.
 
 ```bash
 # 1. Offline game files (see above) into game/
@@ -150,6 +152,7 @@ your files.
 | `tools/remap_functions.py` | Map function addresses between two builds of the executable |
 | `tools/find_*.py`, `tools/xexdump/` | Analysis helpers: leaf/callback functions, jump tables, XEX decoding |
 | `tools/run_game.sh` | Headless test run (Xvfb + lavapipe + PulseAudio null sink, screenshots) |
+| `patches/rexglue-sdk-xma-frame-guard.patch` | SDK fix: XMA audio frames too long for the decoder's buffer are rejected instead of read past it |
 | `packaging/README-linux.txt` | The README that ships in the release archive |
 
 ## Notes for developers

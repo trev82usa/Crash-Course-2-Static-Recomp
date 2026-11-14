@@ -1,0 +1,23 @@
+diff --git a/src/audio/xma_context.cpp b/src/audio/xma_context.cpp
+index 11b83be..7fcafbc 100644
+--- a/src/audio/xma_context.cpp
++++ b/src/audio/xma_context.cpp
+@@ -653,6 +653,18 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
+   stream = BitStream(input_buffer_.data(), (kBitsPerPacket - kBitsPerPacketHeader) * 2);
+   stream.SetOffset(relative_offset - kBitsPerPacketHeader);
+ 
++  // A damaged frame header (seen in Crash Course 2 on an Island course) can claim a frame
++  // longer than the two packets buffered here or than xma_frame_ holds; copying it read past the
++  // buffer and crashed the process. Treat it like the other corrupt-stream cases.
++  if (packet_info.current_frame_size_ > stream.BitsRemaining() ||
++      packet_info.current_frame_size_ > (xma_frame_.size() - 1) * 8) {
++    REXAPU_ERROR("XmaContext {}: frame of {} bits does not fit ({} buffered); stopping stream",
++                 id(), packet_info.current_frame_size_,
++                 static_cast<uint64_t>(stream.BitsRemaining()));
++    data->error_status = 4;
++    return;
++  }
++
+   xma_frame_.fill(0);
+ 
+   const uint32_t padding_start =
