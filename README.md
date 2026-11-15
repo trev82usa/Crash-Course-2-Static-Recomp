@@ -13,6 +13,15 @@ and [doritos-crash-course-xenia](https://github.com/Lken-cmd/doritos-crash-cours
 It can also share course times through a small leaderboard server you host yourself on
 Cloudflare's free plan.
 
+> **What you need before you start**
+> - Your own copy of Doritos Crash Course 2 (the XBLA game files).
+> - **Title Update 2** for it: the file `TU_1C424IF_000000K000000.00000000000G5`. The port only
+>   works with this update, and it is **not** included or linked here. If you can't get hold of
+>   it, this port won't run for you.
+> - 64-bit Linux with a Vulkan graphics driver.
+>
+> Details are under [Getting your game files](#getting-your-game-files).
+
 > **Notice:** This repository contains no game data. You need your own copy of the game and its
 > title update. Please don't post game files, or links to them, in issues or pull requests.
 > This project is not affiliated with Behaviour Interactive, PepsiCo/Doritos or Microsoft.
