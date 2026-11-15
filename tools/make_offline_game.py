@@ -20,6 +20,7 @@ The Xenia set is used rather than the console set because ReXGlue, like Xenia, d
 Xbox avatars: the players need the stand-in models.
 """
 import argparse
+import hashlib
 import os
 import shutil
 import sys
@@ -32,6 +33,27 @@ PATCH_TOML = "patches/5841124F - Doritos Crash Course 2 (offline).patch.toml"
 # recompiler cannot follow that, so these keep the game's own instruction and the port does
 # the same work with mid-asm hooks (src/offline_detours.cpp, cc2_offline_hooks.toml).
 # address -> the patch's value, checked so a different patch file is noticed.
+# Title Update 2 as a single package file (the offline patches are written for exactly this).
+TU2_NAME = "TU_1C424IF_000000K000000.00000000000G5"
+TU2_SIZE = 1458176
+TU2_SHA1 = "febb934bae2cdbd4d0447a9c786f2b5d455f5673"
+
+
+def check_update(path):
+    """Refuse anything but Title Update 2 when given the package file itself."""
+    if not os.path.isfile(path):
+        return  # an extracted folder: the merge step checks its contents
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        sha1 = hashlib.sha1(f.read()).hexdigest()
+    if sha1 != TU2_SHA1:
+        sys.exit(f"\n{path} is not Title Update 2.\n"
+                 f"  expected {TU2_NAME}: {TU2_SIZE:,} bytes, SHA-1 {TU2_SHA1}\n"
+                 f"  this file:  {size:,} bytes, SHA-1 {sha1}\n"
+                 "The offline patches only fit Title Update 2 (version 0.0.2.5).")
+    print(f"Title Update 2 found ({TU2_NAME}, SHA-1 matches)")
+
+
 DETOURS = {
     0x829ECC48: 0x4B8ECE38, 0x829EB7C8: 0x4B8EE2E0, 0x82AF3470: 0x4B7E6EE0,
     0x82B7D588: 0x4B75C548, 0x82B7235C: 0x4B7677A8, 0x829EEE60: 0x4B8EB5B4,
@@ -50,6 +72,7 @@ def main():
     ap.add_argument("--race-solo", action="store_true", help="World Tour without AI racers")
     a = ap.parse_args()
 
+    check_update(a.update)
     revived, xmod = os.path.abspath(a.revived), os.path.abspath(a.xenia_mod)
     sys.path[:0] = [revived, os.path.join(xmod, "tools")]
     import xexpatch          # crash-course-2-revived

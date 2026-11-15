@@ -93,11 +93,20 @@ No game files are included or linked here.
 1. **The game.** Copy the Crash Course 2 package off an Xbox 360 hard drive or USB storage, then
    extract it with Velocity or Horizon. You need `default.xex`, `data.pak`, `ArcadeInfo.xml`,
    `intro.wmv`, `bhvr.wmv` and `AvatarAwards`.
-2. **Title Update 2.** The file `TU_1C424IF_000000K000000.00000000000G5`. A console
-   that played the game online has it in its title update cache. The offline patches are written
-   for this update, so the port needs it.
+2. **Title Update 2 (required).** The port is built on the game's second title update, and the
+   offline patches only fit that version (0.0.2.5). Neither the update nor any link to it is
+   included here. It is a single file:
 
-`tools/build_offline_game.sh` checks both and refuses to build from anything else.
+   | | |
+   |---|---|
+   | File name | `TU_1C424IF_000000K000000.00000000000G5` |
+   | Size | 1,458,176 bytes |
+   | SHA-1 | `febb934bae2cdbd4d0447a9c786f2b5d455f5673` |
+
+   A console that played the game online keeps it in its title update cache.
+
+`tools/build_offline_game.sh` checks the update's SHA-1 and tells you if the file is not Title
+Update 2. The game itself refuses to start from an executable that wasn't built this way.
 
 ## Online leaderboards (optional)
 
